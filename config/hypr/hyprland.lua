@@ -322,7 +322,7 @@ hl.bind("XF86AudioPrev",  hl.dsp.exec_cmd("playerctl previous"),   { description
 local warch = "~/.local/bin/warch"
 
 -- Superficies de la barra
-hl.bind(mainMod .. " + Tab",       hl.dsp.exec_cmd(warch .. " ui overview"),   { description = "warch · Vista general de workspaces" })
+hl.bind("ALT " .. "+ Tab",       hl.dsp.exec_cmd(warch .. " ui overview"),   { description = "warch · Vista general de workspaces" })
 hl.bind(mainMod .. " + A",         hl.dsp.exec_cmd(warch .. " ui dashboard"),  { description = "warch · Dashboard" })
 hl.bind(mainMod .. " + C",         hl.dsp.exec_cmd(warch .. " ui settings"),   { description = "warch · Ajustes rápidos y VPN" })
 hl.bind(mainMod .. " + Escape",    hl.dsp.exec_cmd(warch .. " ui session"),    { description = "warch · Menú de sesión" })
