@@ -1,0 +1,355 @@
+#!/usr/bin/env bash
+# warch — CLI del escritorio warch.
+# Escribe el estado que la barra de Quickshell vigila en $XDG_STATE_HOME/warch/state.json.
+set -euo pipefail
+
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/warch"
+STATE="$STATE_DIR/state.json"
+MODES=(sistema pentest estudio)
+QS_CONFIG="warch"
+
+die() { printf 'warch: %s\n' "$*" >&2; exit 1; }
+
+ensure_state() {
+    mkdir -p "$STATE_DIR"
+    [[ -s "$STATE" ]] || printf '{"mode":"sistema","target":null,"pomo":null}\n' > "$STATE"
+}
+
+# Aplica un filtro jq al estado. Reescribe en el mismo inode para que el watcher de la barra lo vea.
+update() {
+    ensure_state
+    local tmp
+    tmp="$(mktemp "$STATE_DIR/.state.XXXXXX")"
+    jq "$@" "$STATE" > "$tmp" && cat "$tmp" > "$STATE"
+    rm -f "$tmp"
+}
+
+get() { ensure_state; jq -r "$1" "$STATE"; }
+
+cmd_mode() {
+    local cur next i
+    cur="$(get '.mode // "sistema"')"
+    case "${1:-}" in
+        "") echo "$cur"; return ;;
+        next|prev)
+            for i in "${!MODES[@]}"; do [[ "${MODES[$i]}" == "$cur" ]] && break; done
+            if [[ "$1" == next ]]; then next="${MODES[$(( (i + 1) % ${#MODES[@]} ))]}"
+            else next="${MODES[$(( (i - 1 + ${#MODES[@]}) % ${#MODES[@]} ))]}"; fi ;;
+        sistema|pentest|estudio) next="$1" ;;
+        *) die "modo desconocido: $1 (sistema, pentest, estudio, next, prev)" ;;
+    esac
+    update --arg m "$next" '.mode = $m'
+    echo "$next"
+}
+
+cmd_target() {
+    case "${1:-}" in
+        set)
+            [[ -n "${2:-}" ]] || die "uso: warch target set <ip> [nombre]"
+            [[ "$2" =~ ^[0-9a-fA-F.:]+$ ]] || die "IP no válida: $2"
+            update --arg ip "$2" --arg name "${3:-}" --argjson t "$(date +%s)" \
+                '.target = {ip: $ip, name: $name, since: $t} | .mode = "pentest"'
+            echo "objetivo: $2${3:+ ($3)}" ;;
+        clear) update '.target = null'; echo "objetivo borrado" ;;
+        ""|show) get 'if .target then "\(.target.ip) \(.target.name)" else "sin objetivo" end' ;;
+        ip) get '.target.ip // empty' ;;
+        *) die "uso: warch target [set <ip> [nombre] | clear | show | ip]" ;;
+    esac
+}
+
+cmd_pomo() {
+    case "${1:-}" in
+        start)
+            local focus="${2:-90}" brk="${3:-20}"
+            update --argjson s "$(date +%s)" --argjson f "$focus" --argjson b "$brk" \
+                '.pomo = {start: $s, focus: $f, brk: $b} | .mode = "estudio"'
+            echo "pomodoro: ${focus}/${brk} min" ;;
+        stop) update '.pomo = null'; echo "pomodoro detenido" ;;
+        toggle) if [[ "$(get '.pomo != null')" == true ]]; then cmd_pomo stop; else cmd_pomo start "${@:2}"; fi ;;
+        ""|status) get 'if .pomo then "en curso desde \(.pomo.start | strflocaltime("%H:%M")) · \(.pomo.focus)/\(.pomo.brk)" else "detenido" end' ;;
+        *) die "uso: warch pomo [start [foco] [descanso] | stop | toggle | status]" ;;
+    esac
+}
+
+cmd_lhost() {
+    local ip
+    ip="$(ip -4 -j addr | jq -r '[.[] | select(.ifname | test("^tun[0-9]+$")) | .addr_info[0].local // empty][0] // empty')"
+    [[ -n "$ip" ]] || die "no hay ninguna interfaz tun* levantada (VPN de laboratorio)"
+    printf '%s' "$ip" | wl-copy
+    echo "$ip"
+}
+
+# Qt + text-input-v3 de Hyprland rompe AltGr y teclas muertas con el teclado latam en los campos
+# de texto (contraseña del bloqueo y de polkit): la shell lee el teclado directo.
+export QT_WAYLAND_DISABLED_INTERFACES="zwp_text_input_manager_v1,zwp_text_input_manager_v2,zwp_text_input_manager_v3"
+
+cmd_shell() {
+    case "${1:-restart}" in
+        start) qs -c "$QS_CONFIG" -n -d ;;
+        stop) qs kill -c "$QS_CONFIG" 2>/dev/null || true ;;
+        restart)
+            qs kill -c "$QS_CONFIG" >/dev/null 2>&1 || true
+            for _ in {1..20}; do qs list -c "$QS_CONFIG" 2>/dev/null | grep -q '^Instance' || break; sleep 0.1; done
+            qs -c "$QS_CONFIG" -n -d ;;
+        logs) qs log -c "$QS_CONFIG" -f ;;
+        *) die "uso: warch shell [start | stop | restart | logs]" ;;
+    esac
+}
+
+cmd_panel() {
+    case "${1:-toggle}" in
+        toggle) qs -c "$QS_CONFIG" ipc call panel toggle ;;
+        show|open) qs -c "$QS_CONFIG" ipc call panel open ;;
+        hide|close) qs -c "$QS_CONFIG" ipc call panel close ;;
+        *) die "uso: warch panel [toggle | show | hide]" ;;
+    esac
+}
+
+# Wallpapers: la biblioteca es ~/.config/warch/wallpapers (cualquier imagen). El elegido de cada monitor
+# queda enlazado en $STATE_DIR/wallpaper/<monitor>; si no hay ninguno se usa el generado (warch-wallpaper).
+WP_LIB="${XDG_CONFIG_HOME:-$HOME/.config}/warch/wallpapers"
+WP_GEN="${XDG_DATA_HOME:-$HOME/.local/share}/warch/wallpapers"
+THEME="$STATE_DIR/theme.json"
+
+WARCH_CFG="${XDG_CONFIG_HOME:-$HOME/.config}/warch"
+
+# Monitor principal: el de ~/.config/warch/monitors.json o, si no hay, el horizontal más grande
+main_monitor() {
+    local m
+    m="$(jq -r '.main // empty' "$WARCH_CFG/monitors.json" 2>/dev/null || true)"
+    [[ -n "$m" ]] && { echo "$m"; return; }
+    hyprctl monitors -j 2>/dev/null | jq -r '([.[] | select(.transform % 2 == 0)] | if length > 0 then . else empty end // []) as $l
+        | (if ($l | length) > 0 then $l else . end) | max_by(.width * .height) | .name // empty'
+}
+
+wp_wait_daemon() { for _ in {1..30}; do awww query >/dev/null 2>&1 && return; sleep 0.1; done; }
+focused_monitor() { hyprctl monitors -j | jq -r '.[] | select(.focused) | .name'; }
+
+wp_set_one() {   # monitor archivo
+    mkdir -p "$STATE_DIR/wallpaper"
+    ln -sfn "$2" "$STATE_DIR/wallpaper/$1"
+    awww img -o "$1" -t grow --transition-pos 0.5,0.5 --transition-duration 0.8 "$2"
+}
+
+cmd_wallpaper() {
+    local here mon file target
+    here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+    case "${1:-apply}" in
+        gen) "$here/warch-wallpaper" "$WP_GEN" ;;
+        list)
+            mkdir -p "$WP_LIB"
+            find -L "$WP_LIB" -maxdepth 1 -type f \( -iname '*.png' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.webp' \) | sort ;;
+        set)
+            file="$(readlink -f "${2:-}")"
+            [[ -f "$file" ]] || die "uso: warch wallpaper set <imagen> [monitor | all]"
+            target="${3:-$(focused_monitor)}"
+            wp_wait_daemon
+            if [[ "$target" == all ]]; then
+                for mon in $(hyprctl monitors -j | jq -r '.[].name'); do wp_set_one "$mon" "$file"; done
+            else
+                wp_set_one "$target" "$file"
+            fi
+            # Con el esquema «desde el wallpaper», el principal manda en los colores
+            if [[ "$(tget '.scheme // ""')" == wallpaper && ( "$target" == all || "$target" == "$(main_monitor)" ) ]]; then
+                cmd_theme scheme wallpaper >/dev/null
+            fi ;;
+        apply)
+            wp_wait_daemon
+            for mon in $(hyprctl monitors -j | jq -r '.[].name'); do
+                # monitor nuevo sin wallpaper generado: generar para los monitores actuales
+                [[ -f "$WP_GEN/$mon.png" ]] || "$here/warch-wallpaper" "$WP_GEN" >/dev/null
+                file="$(readlink -f "$STATE_DIR/wallpaper/$mon" 2>/dev/null || true)"
+                [[ -f "$file" ]] || file="$WP_GEN/$mon.png"
+                wp_set_one "$mon" "$file"
+            done ;;
+        *) die "uso: warch wallpaper [apply | list | set <imagen> [monitor|all] | gen]" ;;
+    esac
+}
+
+# Tema: esquema, modo claro/oscuro, variante y transparencia (lo lee Theme.qml en vivo)
+tget() { [[ -s "$THEME" ]] || printf '{}\n' > "$THEME"; jq -r "$1" "$THEME"; }
+tupdate() {
+    mkdir -p "$STATE_DIR"; [[ -s "$THEME" ]] || printf '{}\n' > "$THEME"
+    local tmp; tmp="$(mktemp "$STATE_DIR/.theme.XXXXXX")"
+    jq "$@" "$THEME" > "$tmp" && cat "$tmp" > "$THEME"; rm -f "$tmp"
+}
+
+cmd_theme() {
+    local here pal src
+    here="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+    case "${1:-show}" in
+        scheme)
+            [[ -n "${2:-}" ]] || die "uso: warch theme scheme <grafito|circuito|islas|neon|bosque|ambar|wallpaper>"
+            if [[ "$2" == wallpaper ]]; then
+                src="$(readlink -f "$STATE_DIR/wallpaper/$(main_monitor)" 2>/dev/null || echo "$WP_GEN/$(main_monitor).png")"
+                pal="$("$here/warch-palette" "$src")" || die "no pude sacar colores de $src"
+                tupdate --argjson p "$pal" '.scheme = "wallpaper" | .custom = $p'
+            else
+                tupdate --arg s "$2" '.scheme = $s'
+            fi ;;
+        mode)
+            case "${2:-toggle}" in
+                dark|light) tupdate --arg m "$2" '.mode = $m' ;;
+                toggle) tupdate '.mode = (if .mode == "light" then "dark" else "light" end)' ;;
+                *) die "uso: warch theme mode [dark | light | toggle]" ;;
+            esac ;;
+        variant)
+            [[ "${2:-}" =~ ^(tonal|vibrante|neutral|mono)$ ]] || die "uso: warch theme variant <tonal|vibrante|neutral|mono>"
+            tupdate --arg v "$2" '.variant = $v' ;;
+        opacity)
+            [[ "${2:-}" =~ ^[0-9]+$ ]] && (( $2 >= 30 && $2 <= 100 )) || die "uso: warch theme opacity <30-100>"
+            tupdate --argjson o "$2" '.opacity = $o' ;;
+        show) tget '"esquema: \(.scheme // "grafito") · modo: \(.mode // "dark") · variante: \(.variant // "tonal") · opacidad: \(.opacity // 100)%"' ;;
+        *) die "uso: warch theme [scheme <nombre> | mode <dark|light|toggle> | variant <v> | opacity <30-100> | show]" ;;
+    esac
+}
+
+cmd_ui() {
+    case "${1:-}" in
+        dashboard|settings|session|overview|cheatsheet|launcher|wallpaper|close|dnd) qs -c "$QS_CONFIG" ipc call ui "$1" ;;
+        *) die "uso: warch ui [dashboard | settings | session | overview | cheatsheet | launcher | wallpaper | dnd | close]" ;;
+    esac
+}
+
+cmd_lock() {
+    case "${1:-}" in
+        "") qs -c "$QS_CONFIG" ipc call ui lock ;;
+        --test|test) qs -c "$QS_CONFIG" ipc call ui locktest ;;
+        *) die "uso: warch lock [--test]" ;;
+    esac
+}
+
+# Luz nocturna con hyprsunset. La temperatura queda en el estado (.night) para que la barra la vea.
+cmd_night() {
+    command -v hyprsunset >/dev/null || die "falta hyprsunset: sudo pacman -S hyprsunset"
+    pgrep -x hyprsunset >/dev/null || { hyprsunset >/dev/null 2>&1 & disown; sleep 0.5; }
+    local cur new
+    cur="$(get '.night // 6500')"
+    case "${1:-toggle}" in
+        on) new="$(get '.nightWarm // 4500')" ;;
+        off) new=6500 ;;
+        toggle) if (( cur < 6500 )); then new=6500; else new="$(get '.nightWarm // 4500')"; fi ;;
+        warmer) new=$(( cur - 500 )) ;;
+        cooler) new=$(( cur + 500 )) ;;
+        [0-9]*) new="$1" ;;
+        status) (( cur < 6500 )) && echo "encendida · ${cur}K" || echo "apagada"; return ;;
+        *) die "uso: warch night [on | off | toggle | warmer | cooler | <kelvin> | status]" ;;
+    esac
+    (( new < 2500 )) && new=2500
+    (( new > 6500 )) && new=6500
+    if (( new >= 6500 )); then
+        hyprctl hyprsunset identity >/dev/null
+    else
+        hyprctl hyprsunset temperature "$new" >/dev/null
+    fi
+    if (( new < 6500 )); then
+        update --argjson t "$new" '.night = $t | .nightWarm = $t'
+    else
+        update '.night = 6500'
+    fi
+    echo "${new}K"
+}
+
+# Configuración propia de esta máquina (no va al repo):
+#   ~/.config/warch/machine.lua    monitores (disposición actual), teclado y GPU; lo carga hyprland.lua
+#   ~/.config/warch/monitors.json  qué monitor lleva la barra (main) y cuál el panel lateral (side)
+# Interactivo por defecto; con --auto elige solo (útil en el primer inicio de sesión).
+cmd_setup() {
+    local auto=0 mons names main side kb nvidia i n ans lines m
+    [[ "${1:-}" == --auto ]] && auto=1
+    [[ -t 0 ]] || auto=1
+    mkdir -p "$WARCH_CFG"
+
+    # Teclado y GPU: lo que ya había, o lo detectado
+    kb="$(sed -n 's/.*kb_layout *= *"\([^"]*\)".*/\1/p' "$WARCH_CFG/machine.lua" 2>/dev/null | head -1 || true)"
+    [[ -n "$kb" ]] || kb="$(hyprctl devices -j 2>/dev/null | jq -r '[.keyboards[] | select(.main)][0].layout // empty' 2>/dev/null || true)"
+    [[ -n "$kb" ]] || kb="$(localectl status 2>/dev/null | sed -n 's/.*X11 Layout: *//p')"
+    if [[ -z "$kb" ]]; then   # distribución de la consola (ej. la-latin1 → latam)
+        case "$(localectl status 2>/dev/null | sed -n 's/.*VC Keymap: *//p')" in
+            la-latin1) kb=latam ;; es*) kb=es ;; de*) kb=de ;; fr*) kb=fr ;; *) kb=us ;;
+        esac
+    fi
+    if lspci 2>/dev/null | grep -qiE 'vga.*nvidia|3d.*nvidia'; then nvidia=true; else nvidia=false; fi
+
+    if ! mons="$(hyprctl monitors -j 2>/dev/null)" || [[ -z "$mons" ]]; then
+        # Fuera de Hyprland (por ejemplo durante la instalación): regla genérica para cualquier monitor
+        lines='hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" })'
+        main=""; side=""
+    else
+        mapfile -t names < <(jq -r '.[].name' <<<"$mons")
+        main="$(jq -r '.main // empty' "$WARCH_CFG/monitors.json" 2>/dev/null || true)"
+        [[ -n "$main" ]] || main="$(main_monitor)"
+        side="$(jq -r --arg m "$main" '[.[] | select(.transform % 2 == 1 and .name != $m)][0].name // empty' <<<"$mons")"
+
+        if (( ! auto )); then
+            echo "Monitores conectados:"
+            i=1
+            while read -r m; do echo "  $i) $m"; i=$((i + 1)); done < <(jq -r '.[] | "\(.name)  \(.width)x\(.height)@\(.refreshRate|floor)Hz  escala \(.scale)" + (if .transform % 2 == 1 then "  (vertical)" else "" end)' <<<"$mons")
+            n=${#names[@]}
+            read -rp "¿Cuál lleva la barra? [$main]: " ans
+            [[ "$ans" =~ ^[0-9]+$ ]] && (( ans >= 1 && ans <= n )) && main="${names[$((ans - 1))]}"
+            if (( n > 1 )); then
+                read -rp "¿Cuál lleva el panel lateral? (0 = el mismo de la barra) [${side:-0}]: " ans
+                if [[ "$ans" == 0 ]]; then side=""; elif [[ "$ans" =~ ^[0-9]+$ ]] && (( ans >= 1 && ans <= n )); then side="${names[$((ans - 1))]}"; fi
+            fi
+            read -rp "Distribución de teclado [$kb]: " ans; [[ -n "$ans" ]] && kb="$ans"
+        fi
+
+        # La disposición actual de Hyprland pasa a ser la de esta máquina
+        lines="$(jq -r '.[] | "hl.monitor({ output = \"\(.name)\", mode = \"\(.width)x\(.height)@\(.refreshRate * 100 | round / 100)\", position = \"\(.x)x\(.y)\", scale = \(.scale), transform = \(.transform) })"' <<<"$mons")"
+    fi
+
+    cat > "$WARCH_CFG/machine.lua" <<LUA
+-- Generado por \`warch setup\` el $(date '+%F %R'). Propio de esta máquina: no va al repo.
+-- Volvé a correr \`warch setup\` si cambiás de monitores.
+$lines
+
+return { kb_layout = "$kb", nvidia = $nvidia }
+LUA
+    jq -n --arg main "$main" --arg side "$side" '{main: (if $main == "" then null else $main end), side: (if $side == "" then null else $side end)}' > "$WARCH_CFG/monitors.json"
+
+    echo "machine.lua y monitors.json listos (barra: ${main:-auto} · panel: ${side:-el mismo} · teclado: $kb · nvidia: $nvidia)"
+    if hyprctl version >/dev/null 2>&1; then
+        hyprctl reload >/dev/null
+        cmd_wallpaper apply >/dev/null 2>&1 || true
+        cmd_shell restart >/dev/null 2>&1 || true
+    fi
+}
+
+usage() {
+    cat <<'EOF'
+warch — control del escritorio
+
+  warch mode [sistema|pentest|estudio|next|prev]   modo activo de la barra
+  warch target set <ip> [nombre]                    fija el objetivo (pasa a modo pentest)
+  warch target [clear|show|ip]
+  warch pomo start [foco] [descanso]                pomodoro, por defecto 90/20 (pasa a modo estudio)
+  warch pomo [stop|toggle|status]
+  warch lhost                                       copia y muestra tu LHOST (IP de tun*)
+  warch ui [dashboard|settings|session|overview|cheatsheet|dnd|close]  superficies / no molestar
+  warch lock [--test]                               bloquea (--test: vista previa sin bloquear)
+  warch panel [toggle|show|hide]                    panel del monitor vertical
+  warch night [on|off|toggle|warmer|cooler|<K>]     luz nocturna (hyprsunset)
+  warch wallpaper [apply|list|set <img> [mon|all]|gen]  wallpapers (biblioteca: ~/.config/warch/wallpapers)
+  warch theme [scheme|mode|variant|opacity|show]    esquema de colores, claro/oscuro, variante, transparencia
+  warch setup [--auto]                              monitores (barra y panel), teclado y GPU de esta máquina
+  warch shell [start|stop|restart|logs]             controla la barra (Quickshell)
+EOF
+}
+
+case "${1:-}" in
+    mode) shift; cmd_mode "$@" ;;
+    target|t) shift; cmd_target "$@" ;;
+    pomo|p) shift; cmd_pomo "$@" ;;
+    lhost) shift; cmd_lhost ;;
+    panel) shift; cmd_panel "$@" ;;
+    ui) shift; cmd_ui "$@" ;;
+    lock) shift; cmd_lock "$@" ;;
+    wallpaper|wp) shift; cmd_wallpaper "$@" ;;
+    night) shift; cmd_night "$@" ;;
+    theme) shift; cmd_theme "$@" ;;
+    shell) shift; cmd_shell "$@" ;;
+    setup) shift; cmd_setup "$@" ;;
+    -h|--help|help|"") usage ;;
+    *) die "comando desconocido: $1 (warch help)" ;;
+esac

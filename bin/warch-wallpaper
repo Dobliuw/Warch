@@ -1,0 +1,136 @@
+#!/usr/bin/env python3
+"""Genera los wallpapers de warch: trazas de circuito + logo, con la paleta Grafito lavanda.
+
+Uso: warch-wallpaper [directorio_salida]
+Crea un PNG por cada monitor conectado (lo consulta a Hyprland), a su resolución y orientación:
+el principal lleva el logo al centro, los verticales lo llevan abajo y el resto va sin logo.
+Sin Hyprland corriendo genera un juego por defecto (1920×1080 con y sin logo, 1080×1920).
+"""
+import math
+import os
+import random
+import subprocess
+import sys
+import tempfile
+import json
+
+from PIL import Image, ImageDraw, ImageFilter
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+LOGO_SVG = os.path.join(HERE, "..", "quickshell", "assets", "logo.svg")
+
+BASE = (18, 19, 24)          # #121318
+GLOW = (189, 181, 236)       # #bdb5ec (acento)
+TRACE = (231, 228, 220)      # #e7e4dc (crema del logo)
+
+# Sin Hyprland: nombre → (ancho, alto, logo, semilla)
+DEFAULT = {
+    "main": (1920, 1080, "center", 7),
+    "plain": (1920, 1080, None, 11),
+    "portrait": (1080, 1920, "low", 23),
+}
+
+
+def monitors():
+    """Monitores conectados con su tamaño real (rotación incluida) y qué lleva cada uno."""
+    try:
+        mons = json.loads(subprocess.run(["hyprctl", "monitors", "-j"], capture_output=True, text=True, check=True).stdout)
+    except Exception:
+        return DEFAULT
+    roles = {}
+    try:
+        roles = json.load(open(os.path.expanduser("~/.config/warch/monitors.json")))
+    except Exception:
+        pass
+    land = [m for m in mons if m["transform"] % 2 == 0]
+    main = roles.get("main") or max(land or mons, key=lambda m: m["width"] * m["height"])["name"]
+    out = {}
+    for i, m in enumerate(mons):
+        # el wallpaper va a resolución física para que se vea nítido
+        pw, ph = (m["width"], m["height"]) if m["transform"] % 2 == 0 else (m["height"], m["width"])
+        place = "center" if m["name"] == main else ("low" if ph > pw else None)
+        out[m["name"]] = (pw, ph, place, 7 + i * 4)
+    return out
+
+
+SS = 2  # supersampling para bordes suaves
+
+
+def background(w, h):
+    """Fondo base con un halo lavanda muy suave al centro y viñeta en los bordes."""
+    img = Image.new("RGB", (w, h), BASE)
+    px = img.load()
+    cx, cy, rmax = w * 0.5, h * 0.45, math.hypot(w, h) * 0.55
+    for y in range(h):
+        for x in range(0, w):
+            d = min(1.0, math.hypot(x - cx, y - cy) / rmax)
+            glow = (1 - d) ** 2 * 0.07
+            vig = d ** 2 * 0.3
+            px[x, y] = tuple(int(BASE[i] * (1 - vig) + GLOW[i] * glow) for i in range(3))
+    return img
+
+
+def traces(w, h, seed, density):
+    """Trazas ortogonales y a 45° con nodos, en una capa RGBA."""
+    rnd = random.Random(seed)
+    layer = Image.new("RGBA", (w * SS, h * SS), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    g = 13 * SS * (1080 / 640)  # misma escala visual que el mockup
+    dirs = [(1, 0), (0, 1), (-1, 0), (0, -1), (.7071, .7071), (-.7071, .7071), (.7071, -.7071), (-.7071, -.7071)]
+    col = TRACE + (int(255 * 0.07),)
+    lw, nr = max(1, int(1.2 * SS)), 2.6 * SS
+    for _ in range(int(w * h / density)):
+        x = round(rnd.random() * w * SS / g) * g
+        y = round(rnd.random() * h * SS / g) * g
+        di = rnd.randrange(4)
+        pts = [(x, y)]
+        for _ in range(2 + rnd.randrange(4)):
+            ln = (1 + rnd.randrange(5)) * g
+            x += dirs[di][0] * ln
+            y += dirs[di][1] * ln
+            pts.append((x, y))
+            if rnd.random() < .5:
+                di = (4 + di if rnd.random() < .5 else di) if di < 4 else rnd.randrange(4)
+        d.line(pts, fill=col, width=lw, joint="curve")
+        for px, py in (pts[0], pts[-1]):
+            d.ellipse((px - nr, py - nr, px + nr, py + nr), outline=col, width=lw)
+        if rnd.random() < .2:
+            s = 5 * SS
+            d.rectangle((x - s, y + 2 * s, x + s, y + 4 * s), outline=col, width=lw)
+    return layer.resize((w, h), Image.LANCZOS)
+
+
+def logo(height):
+    with tempfile.NamedTemporaryFile(suffix=".png") as tmp:
+        subprocess.run(["rsvg-convert", "-h", str(height), "-o", tmp.name, LOGO_SVG], check=True)
+        return Image.open(tmp.name).convert("RGBA")
+
+
+def compose(w, h, place, seed):
+    img = background(w, h).convert("RGBA")
+    img.alpha_composite(traces(w, h, seed, 7000 * (1080 / 640) ** 2))
+    if place:
+        lh = int(h * (0.42 if place == "center" else 0.16))
+        lg = logo(lh)
+        x = (w - lg.width) // 2
+        y = (h - lg.height) // 2 + int(h * 0.04) if place == "center" else int(h * 0.68)
+        glow = lg.copy()
+        glow.putalpha(glow.getchannel("A").point(lambda a: int(a * 0.55)))
+        glow = glow.filter(ImageFilter.GaussianBlur(lh * 0.035))
+        img.alpha_composite(glow, (x, y))
+        lg.putalpha(lg.getchannel("A").point(lambda a: int(a * (0.9 if place == "center" else 0.55))))
+        img.alpha_composite(lg, (x, y))
+    return img.convert("RGB")
+
+
+def main():
+    out = sys.argv[1] if len(sys.argv) > 1 else os.path.expanduser("~/.local/share/warch/wallpapers")
+    os.makedirs(out, exist_ok=True)
+    for name, (w, h, place, seed) in monitors().items():
+        path = os.path.join(out, f"{name}.png")
+        compose(w, h, place, seed).save(path, optimize=True)
+        print(path)
+
+
+if __name__ == "__main__":
+    main()
