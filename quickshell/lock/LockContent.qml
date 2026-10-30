@@ -50,7 +50,7 @@ Item {
         Image {
             visible: root.main
             Layout.alignment: Qt.AlignHCenter
-            source: Qt.resolvedUrl("../assets/logo.svg")
+            source: Qt.resolvedUrl("../assets/w_logo.svg")
             sourceSize.height: 200
             Layout.preferredHeight: 92
             Layout.preferredWidth: 92 * 805 / 655

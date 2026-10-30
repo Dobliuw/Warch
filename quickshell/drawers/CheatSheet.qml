@@ -41,8 +41,8 @@ Drawer {
         query = ""; group = "Todos"; search.text = "";
         flick.contentY = 0;
         proc.running = true;
-        search.forceActiveFocus();
     }
+    onOpened: search.forceActiveFocus()
 
     Process {
         id: proc
@@ -196,6 +196,7 @@ Drawer {
                 Icon { code: 0xF0349; size: 17; color: Theme.dim }
                 TextInput {
                     id: search
+                    focus: true
                     Layout.fillWidth: true
                     color: Theme.fg
                     font.family: Theme.fontUi

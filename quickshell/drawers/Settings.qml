@@ -17,6 +17,7 @@ Drawer {
     contentHeight: Math.min(450, modelData.height - Theme.barHeight - 30)
     shown: Ui.open === "settings"
     onCloseRequested: Ui.close()
+    onOpened: firstToggle.forceActiveFocus()
 
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property var source: Pipewire.defaultAudioSource
@@ -64,6 +65,18 @@ Drawer {
             Label { text: tg.sub; mono: true; color: tg.on ? Qt.rgba(0.1, 0.1, 0.14, 0.7) : Theme.dim; font.pixelSize: Theme.fontSize - 4; elide: Text.ElideRight; Layout.fillWidth: true }
         }
         MouseArea { id: tgArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: tg.toggled() }
+
+        // Teclado: Tab/flechas para llegar, Enter o Espacio para alternar
+        activeFocusOnTab: true
+        function move(forward) { const n = nextItemInFocusChain(forward); if (n) n.forceActiveFocus(); }
+        Keys.onReturnPressed: tg.toggled()
+        Keys.onEnterPressed: tg.toggled()
+        Keys.onSpacePressed: tg.toggled()
+        Keys.onRightPressed: move(true)
+        Keys.onDownPressed: move(true)
+        Keys.onLeftPressed: move(false)
+        Keys.onUpPressed: move(false)
+        FocusRing {}
     }
 
     RowLayout {
@@ -84,6 +97,7 @@ Drawer {
                 Layout.fillWidth: true
 
                 Toggle {
+                    id: firstToggle
                     icon: 0xF0565; name: "NordVPN"
                     on: Vpn.connected
                     sub: Vpn.busy ? "…" : Vpn.connected ? (root.countryNames[Vpn.country.replace(/ /g, "_")] ?? Vpn.country) : Tr.t("apagado")
@@ -160,6 +174,16 @@ Drawer {
                         Label { text: out.modelData.description || out.modelData.nickname || out.modelData.name; elide: Text.ElideRight; Layout.fillWidth: true; font.pixelSize: Theme.fontSize - 1; muted: !out.current }
                     }
                     MouseArea { id: outArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Pipewire.preferredDefaultAudioSink = out.modelData }
+                    activeFocusOnTab: true
+                    function move(forward) { const n = nextItemInFocusChain(forward); if (n) n.forceActiveFocus(); }
+                    Keys.onReturnPressed: Pipewire.preferredDefaultAudioSink = out.modelData
+                    Keys.onEnterPressed: Pipewire.preferredDefaultAudioSink = out.modelData
+                    Keys.onSpacePressed: Pipewire.preferredDefaultAudioSink = out.modelData
+                    Keys.onDownPressed: move(true)
+                    Keys.onRightPressed: move(true)
+                    Keys.onUpPressed: move(false)
+                    Keys.onLeftPressed: move(false)
+                    FocusRing {}
                 }
             }
             Item { Layout.fillHeight: true }

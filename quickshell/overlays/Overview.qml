@@ -25,6 +25,7 @@ PanelWindow {
     Behavior on progress { NumberAnimation { duration: Theme.drawerAnim; easing.type: Easing.OutCubic } }
 
     onShownChanged: if (shown) { Hyprland.refreshToplevels(); Hyprland.refreshWorkspaces(); }
+    onVisibleChanged: if (visible && shown) Qt.callLater(() => panel.forceActiveFocus())
 
     function addr(t) { const a = t.address || ""; return a.startsWith("0x") ? a : "0x" + a; }
     function goWorkspace(n) { Ui.close(); Hyprland.dispatch("hl.dsp.focus({ workspace = " + n + " })"); }

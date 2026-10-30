@@ -28,8 +28,19 @@ Drawer {
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
 
+    onOpened: tabRepeater.itemAt(root.tab)?.forceActiveFocus()
+
     ColumnLayout {
         anchors { fill: parent; margins: 18; topMargin: 8 }
+        // Teclado: 1–4 cambian de pestaña; Tab/flechas recorren; Enter activa
+        Keys.onPressed: event => {
+            const n = event.key - Qt.Key_1;
+            if (n >= 0 && n < root.tabs.length && !(event.modifiers & (Qt.ControlModifier | Qt.AltModifier))) {
+                root.tab = n;
+                tabRepeater.itemAt(n).forceActiveFocus();
+                event.accepted = true;
+            }
+        }
         spacing: 14
 
         // ---------- Pestañas ----------
@@ -38,6 +49,7 @@ Drawer {
             spacing: 2
 
             Repeater {
+                id: tabRepeater
                 model: root.tabs
                 delegate: Item {
                     id: t
@@ -60,6 +72,18 @@ Drawer {
                         Behavior on width { NumberAnimation { duration: Theme.anim; easing.type: Easing.OutCubic } }
                     }
                     MouseArea { id: tArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.tab = t.index }
+
+                    activeFocusOnTab: true
+                    readonly property int radius: 10
+                    function go(i) { root.tab = (i + root.tabs.length) % root.tabs.length; tabRepeater.itemAt(root.tab).forceActiveFocus(); }
+                    function enter() { root.tab = t.index; const n = nextItemInFocusChain(true); if (n) n.forceActiveFocus(); }
+                    Keys.onLeftPressed: go(t.index - 1)
+                    Keys.onRightPressed: go(t.index + 1)
+                    Keys.onReturnPressed: enter()
+                    Keys.onEnterPressed: enter()
+                    Keys.onSpacePressed: enter()
+                    Keys.onDownPressed: enter()
+                    FocusRing {}
                 }
             }
         }
@@ -81,7 +105,7 @@ Drawer {
                     RowLayout {
                         spacing: 16
                         Image {
-                            source: Qt.resolvedUrl("../assets/logo.svg")
+                            source: Qt.resolvedUrl("../assets/w_logo.svg")
                             sourceSize.height: 150
                             Layout.preferredHeight: 76
                             Layout.preferredWidth: 76 * 805 / 655
@@ -321,6 +345,15 @@ Drawer {
                             radius: 9
                             color: rowArea.containsMouse ? Theme.surface2 : "transparent"
                             MouseArea { id: rowArea; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Todo.focusOn(row.modelData.id) }
+                            // Teclado: Enter enfoca la tarea, Ctrl+Enter la marca como hecha
+                            activeFocusOnTab: true
+                            function move(forward) { const n = nextItemInFocusChain(forward); if (n) n.forceActiveFocus(); }
+                            function act(event) { (event.modifiers & Qt.ControlModifier) ? Todo.done(row.modelData.id) : Todo.focusOn(row.modelData.id); }
+                            Keys.onReturnPressed: event => act(event)
+                            Keys.onEnterPressed: event => act(event)
+                            Keys.onDownPressed: move(true)
+                            Keys.onUpPressed: move(false)
+                            FocusRing {}
                             RowLayout {
                                 anchors { fill: parent; leftMargin: 8; rightMargin: 10 }
                                 spacing: 10

@@ -23,7 +23,8 @@ Drawer {
     property string page: ""          // "" | "scheme" | "variant" | "opacity" | "mode"
     readonly property bool commandMode: query.startsWith(">") || page !== ""
 
-    onShownChanged: if (shown) { page = ""; setQuery(""); input.forceActiveFocus(); }
+    onShownChanged: if (shown) { page = ""; setQuery(""); }
+    onOpened: input.forceActiveFocus()
 
     function setQuery(q) { query = q; input.text = q; list.currentIndex = 0; }
     function back() {
@@ -117,6 +118,7 @@ Drawer {
                 }
                 TextInput {
                     id: input
+                    focus: true
                     Layout.fillWidth: true
                     visible: root.page === ""
                     color: Theme.fg

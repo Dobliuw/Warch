@@ -19,6 +19,11 @@ PanelWindow {
     property int topOffset: Theme.barHeight  // 0 en monitores sin banda: cuelga del borde de la pantalla
     default property alias content: inner.data
     signal closeRequested
+    signal opened            // la ventana ya es visible: recién ahí se puede dar foco a un campo
+
+    // El foco del teclado solo se puede dar cuando la ventana existe y es visible
+    onVisibleChanged: if (visible && shown) Qt.callLater(() => { inner.forceActiveFocus(); win.opened(); })
+    onShownChanged: if (shown && visible) Qt.callLater(() => { inner.forceActiveFocus(); win.opened(); })
 
     readonly property bool right: align === "right"
     property real progress: shown ? 1 : 0
@@ -66,13 +71,12 @@ PanelWindow {
         bottomRightRadius: win.right ? 0 : Theme.drawerRadius
         clip: true
 
-        Item {
+        FocusScope {
             id: inner
             width: win.contentWidth
             height: win.contentHeight
             y: body.height - height          // el contenido sale desde debajo de la banda
             opacity: Math.max(0, (win.progress - 0.35) / 0.65)
-            focus: win.shown
             Keys.onEscapePressed: win.closeRequested()
         }
     }

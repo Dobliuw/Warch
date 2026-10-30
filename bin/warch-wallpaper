@@ -17,7 +17,7 @@ import json
 from PIL import Image, ImageDraw, ImageFilter
 
 HERE = os.path.dirname(os.path.realpath(__file__))
-LOGO_SVG = os.path.join(HERE, "..", "quickshell", "assets", "logo.svg")
+LOGO_SVG = os.path.join(HERE, "..", "quickshell", "assets", "w_logo.svg")
 
 BASE = (18, 19, 24)          # #121318
 GLOW = (189, 181, 236)       # #bdb5ec (acento)

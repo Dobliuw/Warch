@@ -1,7 +1,9 @@
 import QtQuick
 import qs
+import qs.bar
 
 // Deslizador con el estilo de warch. `value` va de 0 a 1; emite `moved(v)` al arrastrar o usar la rueda.
+// Teclado: ←→ ajustan de a 5%, ↑↓ y Tab pasan al control siguiente.
 Item {
     id: root
 
@@ -11,6 +13,16 @@ Item {
 
     implicitHeight: 22
     implicitWidth: 200
+    activeFocusOnTab: true
+    readonly property int radius: 11
+    function step(d) { root.moved(Math.min(1, Math.max(0, root.value + d))); }
+    function move(forward) { const n = nextItemInFocusChain(forward); if (n) n.forceActiveFocus(); }
+    Keys.onLeftPressed: step(-0.05)
+    Keys.onRightPressed: step(0.05)
+    Keys.onDownPressed: move(true)
+    Keys.onUpPressed: move(false)
+
+    FocusRing { anchors.margins: -5 }
 
     Rectangle {
         id: track

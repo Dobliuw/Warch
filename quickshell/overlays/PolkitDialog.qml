@@ -30,6 +30,7 @@ PanelWindow {
         }
     }
     onShownChanged: reveal = false
+    onVisibleChanged: if (visible && shown) Qt.callLater(() => input.forceActiveFocus())
 
     function submit() {
         if (!flow || !flow.isResponseRequired || input.text === "") return;

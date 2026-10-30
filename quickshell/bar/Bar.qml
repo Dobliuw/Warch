@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Effects
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
@@ -87,21 +88,40 @@ PanelWindow {
                 Layout.leftMargin: 8
             }
 
+            // Logo kalirch (assets/kalirch.png); se tiñe con el color del tema al presionarlo. sourceClipRect toma solo la zona con contenido
+            // (el PNG tiene margen transparente); si cambiás la imagen, ajustá el rectángulo y la proporción.
+            // El logo W sigue en el dashboard, el bloqueo y el wallpaper (assets/w_logo.svg).
             Chip {
                 id: logo
-                padX: 4
+                padX: 8
                 active: Ui.open === "dashboard"
                 implicitHeight: Theme.barHeight - 12
                 onClicked: Ui.toggle("dashboard")
 
-                Image {
-                    source: Qt.resolvedUrl("../assets/logo.svg")
-                    sourceSize.height: (Theme.barHeight - 16) * 2
-                    Layout.preferredHeight: Theme.barHeight - 16
-                    Layout.preferredWidth: Layout.preferredHeight * 805 / 655
-                    fillMode: Image.PreserveAspectFit
-                    smooth: true
-                    mipmap: true
+                // Blanco (original) normalmente; al presionarlo (dashboard abierto) toma el acento del tema.
+                // Lo blanco toma el color y el contorno oscuro se mantiene.
+                Item {
+                    Layout.preferredHeight: Theme.barHeight - 18
+                    Layout.preferredWidth: Layout.preferredHeight * 457 / 333
+
+                    Image {
+                        id: kalirch
+                        anchors.fill: parent
+                        source: Qt.resolvedUrl("../assets/kalirch.png")
+                        sourceClipRect: Qt.rect(65, 32, 457, 333)
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
+                        mipmap: true
+                        visible: false
+                    }
+                    MultiEffect {
+                        anchors.fill: kalirch
+                        source: kalirch
+                        colorization: logo.active ? 1.0 : 0.0
+                        colorizationColor: Theme.accent
+                        brightness: logo.hovered && !logo.active ? 0.08 : 0
+                        Behavior on colorization { NumberAnimation { duration: Theme.anim + 60; easing.type: Easing.OutCubic } }
+                    }
                 }
             }
 

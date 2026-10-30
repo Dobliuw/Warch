@@ -43,8 +43,8 @@ PanelWindow {
         query = ""; search.text = ""; toast = "";
         listProc.running = true;
         curProc.running = true;
-        search.forceActiveFocus();
     }
+    onVisibleChanged: if (visible && shown) Qt.callLater(() => search.forceActiveFocus())
 
     Process {
         id: listProc

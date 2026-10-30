@@ -61,7 +61,10 @@ PanelWindow {
         MouseArea { anchors.fill: parent; onClicked: Ui.close() }
     }
 
+    onVisibleChanged: if (visible && shown) Qt.callLater(() => sessionKeys.forceActiveFocus())
+
     ColumnLayout {
+        id: sessionKeys
         anchors.centerIn: parent
         spacing: 14
         opacity: win.progress
