@@ -79,10 +79,12 @@ Drawer {
         const scored = apps.map(e => {
             const n = (e.name || "").toLowerCase(), extra = ((e.genericName || "") + " " + (e.keywords || "") + " " + (e.comment || "")).toLowerCase();
             const sc = !q ? 1 : n.startsWith(q) ? 0 : n.includes(q) ? 1 : extra.includes(q) ? 2 : -1;
-            return { e, sc };
+            return { e, sc, use: AppUsage.score(e.id) };
         }).filter(x => x.sc >= 0);
-        scored.sort((a, b) => a.sc - b.sc || a.e.name.localeCompare(b.e.name));
-        return scored.slice(0, 40).map(x => ({ app: x.e, title: x.e.name, sub: x.e.genericName || x.e.comment || "", run: () => x.e.execute() }));
+        // Más usadas primero (sin búsqueda) o dentro de cada nivel de coincidencia (con búsqueda)
+        scored.sort((a, b) => a.sc - b.sc || b.use - a.use || a.e.name.localeCompare(b.e.name));
+        return scored.slice(0, 40).map(x => ({ app: x.e, title: x.e.name, sub: x.e.genericName || x.e.comment || "",
+            run: () => { AppUsage.record(x.e.id); x.e.execute(); } }));
     }
 
     function activate(i) {

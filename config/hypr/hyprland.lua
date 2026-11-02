@@ -196,6 +196,16 @@ hl.config({
     misc = {
         force_default_wallpaper = -1,    -- Set to 0 or 1 to disable the anime mascot wallpapers
         disable_hyprland_logo   = false, -- If true disables the random hyprland logo / anime girl background. :(
+        vrr                     = 0,     -- VRR apagado: al entrar/salir de fullscreen no renegocia el modo
+    },
+
+    -- Pantalla completa sin "pantallazo negro": por defecto Hyprland le avisa al monitor el tipo de
+    -- contenido (video/juego) y pasa a HDR solo si la app lo pide; muchos monitores reaccionan
+    -- cambiando de modo (se apagan ~2 s, como un cambio de resolución). Se desactivan ambos.
+    render = {
+        send_content_type = false,
+        cm_auto_hdr       = 0,
+        direct_scanout    = 0,
     },
 })
 
@@ -336,6 +346,9 @@ hl.bind(mainMod .. " + W",         hl.dsp.exec_cmd(warch .. " ui wallpaper"),  {
 -- ignore_alpha evita desenfocar las zonas totalmente transparentes de cada capa.
 hl.layer_rule({ name = "warch-blur", match = { namespace = "^warch-(bar|drawer|wallpaper|notifications|panel|polkit|session|overview)$" }, blur = true, ignore_alpha = 0.05 })
 hl.bind(mainMod .. " + L",         hl.dsp.exec_cmd(warch .. " lock"),          { description = "Sesión · Bloquear" })
+-- Modo encubierto: sale de Hyprland y entra a GNOME con aspecto de Windows 11 (y vuelve con el mismo atajo).
+-- `exec Hyprland` pasa por /usr/local/bin/Hyprland (lo instala `windows-undercover install`) para poder volver.
+hl.bind("ALT + SHIFT + W",          hl.dsp.exec_cmd("~/.local/bin/windows-undercover switch"), { description = "Sesión · Cambiar a Windows (encubierto)" })
 
 -- Modos
 hl.bind(mainMod .. " + M",         hl.dsp.exec_cmd(warch .. " mode next"), { description = "Modos · Siguiente (sistema, pentest, estudio)" })
