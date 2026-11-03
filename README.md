@@ -6,7 +6,7 @@
 </p>
 
 -------
-# warch
+# WArch
 
 My Arch Linux + Hyprland desktop, reproducible. It's not a distro: it's a repo with the configuration
 and an installer that turns any machine (laptop or PC, with one, two or three monitors) into the same
