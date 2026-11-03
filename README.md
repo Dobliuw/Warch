@@ -12,6 +12,25 @@ My Arch Linux + Hyprland desktop, reproducible. It's not a distro: it's a repo w
 and an installer that turns any machine (laptop or PC, with one, two or three monitors) into the same
 system: bar, shortcuts, themes, wallpapers, lock screen, VPN and tools.
 
+## Screenshots
+
+<p align="center">
+  <img src="./assets/screenshots/01-desktop.png" alt="warch desktop: bar, btop and a terminal on Hyprland" width="100%">
+  <br><sub>The desktop: warch bar, tiled kitty windows (<code>SUPER + Enter</code>) and the circuit wallpaper</sub>
+</p>
+
+| | |
+|---|---|
+| ![Launcher](./assets/screenshots/02-launcher.png) | ![Dashboard](./assets/screenshots/03-dashboard.png) |
+| <sub>`SUPER + D` · launcher, apps sorted by use, `>` for commands</sub> | <sub>`SUPER + A` · dashboard: pomodoro and TO-DOsh tasks (study mode)</sub> |
+| ![Quick settings](./assets/screenshots/04-quick-settings.png) | ![Cheat sheet](./assets/screenshots/05-cheatsheet.png) |
+| <sub>`SUPER + C` · quick settings, audio and VPN</sub> | <sub>`SUPER + K` · searchable cheat sheet of every shortcut</sub> |
+
+<p align="center">
+  <img src="./assets/screenshots/06-tab-selection.png" alt="warch workspace overview with live window previews" width="100%">
+  <br><sub><code>ALT + Tab</code> · workspace overview with live previews; arrows + Enter to jump, drag windows between workspaces</sub>
+</p>
+
 ## Install on a new machine
 
 ```sh
