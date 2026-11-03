@@ -2,7 +2,7 @@
   <img src="./assets/warch.png" alt="WArch logo" width="420">
 </p>
 <p align="center">
-  <b><code>Dobliuw's</code> **Arch linux** configuration to use the entire system with a cool asthetic and aimed to bash usage with shortcuts.</b><br>
+  <b><code>Dobliuw's</code> <bold>Arch linux</bold> configuration to use the entire system with a cool asthetic and aimed to bash usage with shortcuts.</b><br>
 </p>
 
 -------
