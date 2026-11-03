@@ -10,6 +10,7 @@ import qs.services
 
 // Vista general de los workspaces 1–10 (grilla 2×5) con miniaturas en vivo.
 // Arrastrar una ventana a otro workspace la mueve; clic en un workspace o ventana va a él; Esc sale.
+// Teclado: flechas (o Tab / Shift+Tab) mueven la selección, Enter va al workspace seleccionado.
 PanelWindow {
     id: win
 
@@ -24,7 +25,12 @@ PanelWindow {
     property real progress: shown ? 1 : 0
     Behavior on progress { NumberAnimation { duration: Theme.drawerAnim; easing.type: Easing.OutCubic } }
 
-    onShownChanged: if (shown) { Hyprland.refreshToplevels(); Hyprland.refreshWorkspaces(); }
+    property int sel: 1
+    onShownChanged: if (shown) { sel = hmon?.activeWorkspace?.id ?? 1; if (sel < 1 || sel > 10) sel = 1; Hyprland.refreshToplevels(); Hyprland.refreshWorkspaces(); }
+    function moveSel(dc, dr) {
+        const i = sel - 1, c = (i % cols + dc + cols) % cols, rr = (Math.floor(i / cols) + dr + 2) % 2;
+        sel = rr * cols + c + 1;
+    }
     onVisibleChanged: if (visible && shown) Qt.callLater(() => panel.forceActiveFocus())
 
     function addr(t) { const a = t.address || ""; return a.startsWith("0x") ? a : "0x" + a; }
@@ -65,6 +71,14 @@ PanelWindow {
         scale: 0.95 + 0.05 * win.progress
         focus: win.shown
         Keys.onEscapePressed: Ui.close()
+        Keys.onLeftPressed: win.moveSel(-1, 0)
+        Keys.onRightPressed: win.moveSel(1, 0)
+        Keys.onUpPressed: win.moveSel(0, -1)
+        Keys.onDownPressed: win.moveSel(0, 1)
+        Keys.onTabPressed: win.sel = win.sel % 10 + 1
+        Keys.onBacktabPressed: win.sel = (win.sel + 8) % 10 + 1
+        Keys.onReturnPressed: win.goWorkspace(win.sel)
+        Keys.onEnterPressed: win.goWorkspace(win.sel)
         MouseArea { anchors.fill: parent }   // no cerrar al hacer clic dentro
 
         Grid {
@@ -81,6 +95,7 @@ PanelWindow {
                     required property int index
                     readonly property int ws: index + 1
                     readonly property bool current: win.hmon?.activeWorkspace?.id === ws
+                    readonly property bool selected: win.sel === ws
                     property bool dropTarget: false
                     property bool hasDrag: false
                     z: hasDrag ? 10 : 0
@@ -88,9 +103,11 @@ PanelWindow {
                     width: win.tileW
                     height: win.tileH
                     radius: 12
-                    color: dropTarget ? Theme.surface2 : Theme.base
-                    border.width: 2
-                    border.color: dropTarget ? Theme.accent2 : current ? Theme.accent : "transparent"
+                    color: dropTarget || selected ? Theme.surface2 : Theme.base
+                    border.width: selected ? 3 : 2
+                    border.color: dropTarget || selected ? Theme.accent2 : current ? Theme.accent : "transparent"
+                    scale: selected ? 1.03 : 1
+                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
                     clip: !hasDrag
 
                     Label {
@@ -98,7 +115,7 @@ PanelWindow {
                         text: tile.ws
                         font.pixelSize: 44
                         font.weight: Font.ExtraBold
-                        color: Qt.rgba(0.9, 0.89, 0.86, 0.07)
+                        color: tile.selected ? Qt.rgba(0.9, 0.89, 0.86, 0.18) : Qt.rgba(0.9, 0.89, 0.86, 0.07)
                     }
 
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: win.goWorkspace(tile.ws) }
