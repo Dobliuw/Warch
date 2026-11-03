@@ -11,13 +11,16 @@ Singleton {
 
     readonly property string path: (Quickshell.env("XDG_STATE_HOME") || Quickshell.env("HOME") + "/.local/state") + "/warch/state.json"
 
+    // Ruta absoluta: Quickshell hereda el PATH de Hyprland, que no incluye ~/.local/bin.
+    readonly property string bin: Quickshell.env("HOME") + "/.local/bin/warch"
+
     property var data: ({})
     readonly property string mode: (data && data.mode) || "sistema"
     readonly property var target: (data && data.target) || null
     readonly property var pomo: (data && data.pomo) || null
 
     function run(args) {
-        Quickshell.execDetached(["warch"].concat(args));
+        Quickshell.execDetached([root.bin].concat(args));
     }
 
     FileView {

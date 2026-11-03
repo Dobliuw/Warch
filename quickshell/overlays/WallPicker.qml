@@ -32,7 +32,7 @@ PanelWindow {
     function apply(all) {
         const f = shownFiles[list.currentIndex];
         if (!f) return;
-        Quickshell.execDetached(["warch", "wallpaper", "set", f, all ? "all" : modelData.name]);
+        Quickshell.execDetached([Store.bin, "wallpaper", "set", f, all ? "all" : modelData.name]);
         current = f;
         toast = all ? Tr.t("Aplicado en todos los monitores") : Tr.f("Aplicado en %1", modelData.name);
         toastTimer.restart();
@@ -48,7 +48,7 @@ PanelWindow {
 
     Process {
         id: listProc
-        command: ["warch", "wallpaper", "list"]
+        command: [Store.bin, "wallpaper", "list"]
         stdout: StdioCollector { onStreamFinished: { win.files = text.trim().split("\n").filter(l => l !== ""); win.selectCurrent(); } }
     }
     Process {

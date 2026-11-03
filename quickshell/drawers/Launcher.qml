@@ -31,7 +31,7 @@ Drawer {
         if (page !== "") { page = ""; setQuery(">"); }
         else Ui.close();
     }
-    function warch(args) { Quickshell.execDetached(["warch"].concat(args)); }
+    function warch(args) { Store.run(args); }
 
     readonly property var commands: [
         { icon: 0xF03D8, title: Tr.t("Esquema"), sub: Tr.t("Cambiar la paleta de colores"), go: "scheme" },
