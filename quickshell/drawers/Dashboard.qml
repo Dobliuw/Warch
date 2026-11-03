@@ -24,6 +24,7 @@ Drawer {
     ]
     readonly property string targetDir: Store.target ? Theme.pentestDir + "/" + (Store.target.name || Store.target.ip) : ""
 
+    function openBtop() { Ui.close(); Quickshell.execDetached(["kitty", "--title", "warch-btop", "-e", "btop"]); }
     function notify(title, body) { Quickshell.execDetached(["notify-send", "-a", "warch", title, body]); }
 
     SystemClock { id: clock; precision: SystemClock.Minutes }
@@ -76,7 +77,7 @@ Drawer {
                     activeFocusOnTab: true
                     readonly property int radius: 10
                     function go(i) { root.tab = (i + root.tabs.length) % root.tabs.length; tabRepeater.itemAt(root.tab).forceActiveFocus(); }
-                    function enter() { root.tab = t.index; const n = nextItemInFocusChain(true); if (n) n.forceActiveFocus(); }
+                    function enter() { root.tab = t.index; if (t.index === 1) { root.openBtop(); return; } const n = nextItemInFocusChain(true); if (n) n.forceActiveFocus(); }
                     Keys.onLeftPressed: go(t.index - 1)
                     Keys.onRightPressed: go(t.index + 1)
                     Keys.onReturnPressed: enter()
@@ -199,26 +200,31 @@ Drawer {
             }
 
             // ================= Rendimiento =================
-            RowLayout {
-                spacing: 10
-                Item { Layout.fillWidth: true }
-                Gauge {
-                    ratio: Sys.gpuTemp / 100; color: Theme.accent
-                    value: Sys.gpuTemp + "°"; label: "GPU"; sub: Tr.f("%1%\nuso", Sys.gpuUtil)
+            // Clic en los medidores (o Enter en la pestaña) abre btop
+            Item {
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openBtop() }
+                RowLayout {
+                    anchors.fill: parent
+                    spacing: 10
+                    Item { Layout.fillWidth: true }
+                    Gauge {
+                        ratio: Sys.gpuTemp / 100; color: Theme.accent
+                        value: Sys.gpuTemp + "°"; label: "GPU"; sub: Tr.f("%1%\nuso", Sys.gpuUtil)
+                    }
+                    Item { Layout.fillWidth: true }
+                    Gauge {
+                        implicitWidth: 210; implicitHeight: 210
+                        ratio: Sys.cpuTemp / 100; color: Theme.accent2
+                        value: Sys.cpuTemp + "°"; label: "CPU"; sub: Tr.f("%1%\nuso", Sys.cpu)
+                    }
+                    Item { Layout.fillWidth: true }
+                    Gauge {
+                        ratio: Sys.ramTotalG ? Sys.ramUsedG / Sys.ramTotalG : 0; color: Theme.ok
+                        value: Sys.ramUsedG.toFixed(1) + "G"; label: Tr.f("RAM de %1G", Math.round(Sys.ramTotalG))
+                        sub: Tr.f("%1G\ndisco", Math.round(Sys.diskUsedG))
+                    }
+                    Item { Layout.fillWidth: true }
                 }
-                Item { Layout.fillWidth: true }
-                Gauge {
-                    implicitWidth: 210; implicitHeight: 210
-                    ratio: Sys.cpuTemp / 100; color: Theme.accent2
-                    value: Sys.cpuTemp + "°"; label: "CPU"; sub: Tr.f("%1%\nuso", Sys.cpu)
-                }
-                Item { Layout.fillWidth: true }
-                Gauge {
-                    ratio: Sys.ramTotalG ? Sys.ramUsedG / Sys.ramTotalG : 0; color: Theme.ok
-                    value: Sys.ramUsedG.toFixed(1) + "G"; label: Tr.f("RAM de %1G", Math.round(Sys.ramTotalG))
-                    sub: Tr.f("%1G\ndisco", Math.round(Sys.diskUsedG))
-                }
-                Item { Layout.fillWidth: true }
             }
 
             // ================= Pentest =================
