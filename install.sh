@@ -5,7 +5,7 @@
 #
 # Uso: ./install.sh [--yes] [--only paso1,paso2]
 #   --yes    no pregunta: usa las opciones por defecto
-#   --only   corre solo esos pasos: packages, aur, fonts, links, services, todosh, setup
+#   --only   corre solo esos pasos: packages, aur, fonts, links, services, todosh, undercover, setup
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -71,13 +71,17 @@ fi
 # ---------- 2. AUR (NordVPN) ----------
 if want aur; then
     step "AUR"
+    # Helper de AUR disponible (lo usan wayscriber y, si se elige, NordVPN)
+    if ! command -v yay >/dev/null && ! command -v paru >/dev/null; then
+        info "$(t 'Instalando yay…' 'Installing yay…')"
+        sudo pacman -S --needed --noconfirm base-devel
+        tmp="$(mktemp -d)"; git clone --depth 1 https://aur.archlinux.org/yay-bin.git "$tmp/yay-bin"
+        (cd "$tmp/yay-bin" && makepkg -si --noconfirm); rm -rf "$tmp"
+    fi
+    aur="$(command -v yay || command -v paru)"
+    # Pizarra / anotación en pantalla (como Epic Pen): wayscriber
+    "$aur" -S --needed --noconfirm wayscriber-bin && ok "$(t 'wayscriber instalado (pizarra en pantalla)' 'wayscriber installed (on-screen annotation)')"
     if ask "$(t '¿Instalar NordVPN (nordvpn-bin)?' 'Install NordVPN (nordvpn-bin)?')" y; then
-        if ! command -v yay >/dev/null && ! command -v paru >/dev/null; then
-            info "$(t 'Instalando yay…' 'Installing yay…')"
-            sudo pacman -S --needed --noconfirm base-devel
-            tmp="$(mktemp -d)"; git clone --depth 1 https://aur.archlinux.org/yay-bin.git "$tmp/yay-bin"
-            (cd "$tmp/yay-bin" && makepkg -si --noconfirm); rm -rf "$tmp"
-        fi
         aur="$(command -v yay || command -v paru)"
         "$aur" -S --needed --noconfirm nordvpn-bin
         sudo systemctl enable --now nordvpnd
@@ -120,6 +124,7 @@ if want links; then
     link config/hypr/launch.sh     "$HOME/.config/hypr/launch.sh"
     link config/hypr/hypridle.conf "$HOME/.config/hypr/hypridle.conf"
     link config/hypr/scripts       "$HOME/.config/hypr/scripts"
+    link config/wayscriber/config.toml "$HOME/.config/wayscriber/config.toml"  # pizarra en pantalla
     link quickshell                "$HOME/.config/quickshell/warch"
     for b in warch warch-wallpaper warch-palette; do link "bin/$b" "$HOME/.local/bin/$b"; done
     if ask "$(t '¿Usar también la configuración de kitty de warch?' 'Also use warch’s kitty config?')" y; then
@@ -159,7 +164,26 @@ if want todosh; then
     fi
 fi
 
-# ---------- 7. esta máquina ----------
+# ---------- 7. Arch Undercover (opcional) ----------
+# Look de Windows 11 sobre GNOME; ALT + SHIFT + W (ya está en hyprland.lua) cambia entre los dos.
+UNDERCOVER_DIR="$HOME/.local/src/Arch-Undercover"
+if want undercover; then
+    step "Arch Undercover"
+    if ask "$(t '¿Instalar Arch Undercover (GNOME con look de Windows 11, ALT + SHIFT + W)?' 'Install Arch Undercover (GNOME with a Windows 11 look, ALT + SHIFT + W)?')" n; then
+        if [[ -d "$UNDERCOVER_DIR/.git" ]]; then
+            git -C "$UNDERCOVER_DIR" pull --ff-only -q || warn "$(t 'No se pudo actualizar' 'Could not update') $UNDERCOVER_DIR"
+        else
+            mkdir -p "$(dirname "$UNDERCOVER_DIR")"
+            git clone --depth 1 https://github.com/Dobliuw/Arch-Undercover.git "$UNDERCOVER_DIR"
+        fi
+        "$UNDERCOVER_DIR/install.sh"
+        ok "Arch Undercover $(t 'instalado' 'installed')"
+    else
+        info "$(t 'Arch Undercover omitido' 'Arch Undercover skipped')"
+    fi
+fi
+
+# ---------- 8. esta máquina ----------
 if want setup; then
     step "$(t 'Esta máquina' 'This machine')"
     if hyprctl version &>/dev/null; then

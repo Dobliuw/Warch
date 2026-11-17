@@ -47,6 +47,7 @@ hl.on("hyprland.start", function()
 
     hl.exec_cmd("~/.config/hypr/launch.sh")
     hl.exec_cmd("hyprsunset")  -- luz nocturna (antes wl-gammarelay, que no estaba instalado)
+    -- (la pizarra wayscriber NO se autoarranca: es de instancia única y se levanta on-demand desde los atajos SUPER+ALT)
 
     if machine.nvidia then
         hl.exec_cmd("nvidia-settings --load-config-only")
@@ -264,6 +265,16 @@ hl.bind(mainMod .. " + ALT + D", hl.dsp.exec_cmd(discord), { description = "Apps
 hl.bind(mainMod .. " + ALT + O", hl.dsp.exec_cmd(obsidian), { description = "Apps · Obsidian" })
 hl.bind(mainMod .. " + H",       hl.dsp.exec_cmd("~/.config/wlsnarf/wlsnarf_history.sh"), { description = "Apps · Historial de wlsnarf" })
 
+-- Pizarra / anotación en pantalla (wayscriber) — alternativa a Epic Pen para dar clases y grabar.
+-- Instancia única: cada modo abre "en blanco" (nunca arrastra la sesión pasada). Lo maneja scripts/wayscriber.sh.
+--  · SUPER+ALT+A → lápiz one-shot (capta los clicks para dibujar): siempre en blanco; Escape borra y cierra.
+--  · SUPER+ALT+L → transparente/passthrough: entra en blanco dejando pasar los clicks; otra vez = sale y descarta.
+--  · SUPER+ALT+S → fija / suelta el trazo mientras estás en passthrough.
+-- Dentro del overlay: arrastrar = lápiz, Shift = línea, Ctrl = rectángulo, Tab = elipse, T = texto, E = borrar todo.
+hl.bind(mainMod .. " + ALT + A", hl.dsp.exec_cmd("~/.config/hypr/scripts/wayscriber.sh clean"), { description = "Pizarra · Lápiz limpio (Esc borra y cierra)" })
+hl.bind(mainMod .. " + ALT + L", hl.dsp.exec_cmd("~/.config/hypr/scripts/wayscriber.sh pass"),  { description = "Pizarra · Modo transparente (entra en blanco)" })
+hl.bind(mainMod .. " + ALT + S", hl.dsp.exec_cmd("~/.config/hypr/scripts/wayscriber.sh draw"),  { description = "Pizarra · Fijar / soltar el trazo (transparente)" })
+
 -- Basic keybinds
 hl.bind(mainMod .. " + Return",      hl.dsp.exec_cmd(terminal), { description = "Apps · Terminal (kitty)" })
 hl.bind(mainMod .. " + Q",           hl.dsp.window.close(), { description = "Ventanas · Cerrar" })
@@ -347,8 +358,8 @@ hl.bind(mainMod .. " + W",         hl.dsp.exec_cmd(warch .. " ui wallpaper"),  {
 hl.layer_rule({ name = "warch-blur", match = { namespace = "^warch-(bar|drawer|wallpaper|notifications|panel|polkit|session|overview)$" }, blur = true, ignore_alpha = 0.05 })
 hl.bind(mainMod .. " + L",         hl.dsp.exec_cmd(warch .. " lock"),          { description = "Sesión · Bloquear" })
 -- Modo encubierto: sale de Hyprland y entra a GNOME con aspecto de Windows 11 (y vuelve con el mismo atajo).
--- `exec Hyprland` pasa por /usr/local/bin/Hyprland (lo instala `windows-undercover install`) para poder volver.
-hl.bind("ALT + SHIFT + W",          hl.dsp.exec_cmd("~/.local/bin/windows-undercover switch"), { description = "Sesión · Cambiar a Windows (encubierto)" })
+-- `exec Hyprland` pasa por /usr/local/bin/Hyprland (lo instala Arch Undercover: github.com/Dobliuw/Arch-Undercover) para poder volver.
+hl.bind("ALT + SHIFT + W",          hl.dsp.exec_cmd("~/.local/bin/arch-undercover switch"), { description = "Sesión · Cambiar a Windows (encubierto)" })
 
 -- Modos
 hl.bind(mainMod .. " + M",         hl.dsp.exec_cmd(warch .. " mode next"), { description = "Modos · Siguiente (sistema, pentest, estudio)" })

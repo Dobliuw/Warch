@@ -1,0 +1,18 @@
+# wayscriber — config de warch (enlazado en ~/.config/wayscriber/config.toml).
+# Pizarra / anotación en pantalla, alternativa a Epic Pen.
+#
+# Objetivo: que el lápiz NO conserve "lo de la sesión pasada".
+#   · El daemon arranca con --no-resume-session (ver config/hypr/hyprland.lua),
+#     así que al iniciar sesión siempre está en blanco.
+#   · Acá además apagamos el autosave y la persistencia de cada tablero,
+#     para no dejar sesiones guardadas en disco.
+# El atajo SUPER+ALT+A usa el modo one-shot (--active): abre en blanco y, al
+# salir con Escape, descarta el dibujo.
+
+[session]
+persist_transparent = false
+persist_whiteboard  = false
+persist_blackboard  = false
+persist_history     = false
+restore_tool_state  = false
+autosave_enabled    = false

@@ -52,6 +52,7 @@ The installer is safe to run again. Anything already in `~/.config` is moved to
 | `links` | Links the repo config into `~/.config` and the CLI into `~/.local/bin`; copies the wallpapers |
 | `services` | Disables dunst/mako, enables NTP and Bluetooth, sets the default theme |
 | `todosh` | Clones TO-DOsh into `/opt/todosh` |
+| `undercover` | Optional: [Arch Undercover](https://github.com/Dobliuw/Arch-Undercover), a Windows 11 look on GNOME that `ALT + SHIFT + W` switches to and back |
 | `setup` | Generates this machine's own configuration (see below) |
 
 ## What handles what
